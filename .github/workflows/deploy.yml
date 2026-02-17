@@ -1,0 +1,125 @@
+name: Deploy multiple Slidev lectures with pnpm (Node 22)
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      # -------------------------------
+      # Enable pnpm via corepack
+      # -------------------------------
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+
+      # -------------------------------
+      # Install dependencies
+      # -------------------------------
+      - name: Install dependencies
+        run: |
+          if [ -f "package.json" ]; then
+            pnpm install
+          fi
+          cd slidev-theme-penguin-rtl && pnpm install && cd ..
+
+      # -------------------------------
+      # Install Slidev CLI
+      # -------------------------------
+      - name: Install Slidev CLI
+        run: pnpm add -D @slidev/cli
+
+      # -------------------------------
+      # Build Slides (HTML + PDF)
+      # -------------------------------
+      - name: Build all root-level .md files
+        run: |
+           mkdir -p dist
+           mkdir -p pdfs
+
+           for file in Lecture*.md; do
+              [ -f "$file" ] || continue
+              name=$(basename "$file" .md)
+
+              echo "Building HTML for $file → dist/$name"
+              pnpm slidev build "$file" \
+                --out "dist/$name" \
+                --base "/${{ github.event.repository.name }}/$name/"
+
+              echo "Exporting PDF for $file → pdfs/$name.pdf"
+              pnpm slidev export "$file" \
+                --format pdf \
+                --output "pdfs/$name.pdf"
+           done
+
+      # -------------------------------
+      # Generate index.html
+      # -------------------------------
+      - name: Generate index.html
+        run: |
+          cat > dist/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8" />
+            <title>Lectures</title>
+            <style>
+              body { font-family: sans-serif; padding: 40px; }
+              h1 { margin-bottom: 20px; }
+              ul { line-height: 2; font-size: 1.2em; }
+              a { text-decoration: none; color: #0070f3; }
+              a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <h1>Available Lectures</h1>
+            <ul>
+          EOF
+
+          for dir in dist/*/; do
+            name=$(basename "$dir")
+            echo "              <li><a href=\"./$name/\">$name</a></li>" >> dist/index.html
+          done
+
+          cat >> dist/index.html << 'EOF'
+            </ul>
+          </body>
+          </html>
+          EOF
+
+      # -------------------------------
+      # Upload PDFs as GitHub Artifacts
+      # -------------------------------
+      - name: Upload Lecture PDFs
+        uses: actions/upload-artifact@v4
+        with:
+          name: slidev-pdfs
+          path: pdfs/*.pdf
+          if-no-files-found: warn
+
+      # -------------------------------
+      # Deploy HTML to GitHub Pages
+      # -------------------------------
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
