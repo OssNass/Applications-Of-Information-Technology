@@ -3,7 +3,7 @@ name: Deploy multiple Slidev lectures with pnpm (Node 22)
 on:
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: write
