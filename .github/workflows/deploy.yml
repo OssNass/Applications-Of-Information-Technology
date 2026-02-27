@@ -62,30 +62,34 @@ jobs:
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps
 
-      # -------------------------------
-      # Build Slides (HTML + PDF)
-      # -------------------------------
       - name: Build all root-level Lecture*.md files
         run: |
           mkdir -p dist
           mkdir -p dist/pdfs
-
+          
           for file in Lecture*.md; do
             [ -f "$file" ] || continue
             name=$(basename "$file" .md)
-
-            echo "Building HTML for $file"
+          
+            echo "Building static site for $file"
             pnpm slidev build "$file" \
               --out "dist/$name" \
-              --base "/${{ github.event.repository.name }}/$name/"
-
-            echo "Exporting PDF for $file"
-            pnpm slidev export "$file" \
+              --base "/"
+          
+            echo "Starting temporary server..."
+            npx serve dist/$name -l 5000 &
+          
+            SERVER_PID=$!
+            sleep 5
+          
+            echo "Exporting PDF from served site..."
+            pnpm slidev export "http://localhost:5000" \
               --format pdf \
-              --with-clicks \
               --timeout 120000 \
-              --wait 2000 \
+              --wait 3000 \
               --output "dist/pdfs/$name.pdf"
+          
+            kill $SERVER_PID
           done
 
       # -------------------------------
