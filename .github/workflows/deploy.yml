@@ -14,16 +14,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -------------------------------
+      # Checkout
+      # -------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # -------------------------------
+      # Setup Node
+      # -------------------------------
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       # -------------------------------
-      # Enable pnpm via corepack
+      # Enable pnpm
       # -------------------------------
       - name: Enable pnpm
         run: |
@@ -35,44 +41,53 @@ jobs:
       # -------------------------------
       - name: Install dependencies
         run: |
-          if [ -f "package.json" ]; then
-            pnpm install
-          fi
+          pnpm install
           cd slidev-theme-penguin-rtl && pnpm install && cd ..
 
       # -------------------------------
-      # Install Slidev CLI
+      # Install system fonts (fix empty PDFs)
       # -------------------------------
-      - name: Install Slidev CLI
-        run: pnpm add -D @slidev/cli
-      - name: Install Playwright Browsers
+      - name: Install fonts
         run: |
-          pnpm exec playwright install --with-deps
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-noto \
+            fonts-noto-cjk \
+            fonts-noto-color-emoji \
+            fonts-freefont-ttf
+
+      # -------------------------------
+      # Install Playwright browsers
+      # -------------------------------
+      - name: Install Playwright Browsers
+        run: pnpm exec playwright install --with-deps
+
       # -------------------------------
       # Build Slides (HTML + PDF)
       # -------------------------------
-      - name: Build all root-level .md files
+      - name: Build all root-level Lecture*.md files
         run: |
           mkdir -p dist
-          mkdir -p dist/pdfs   # <-- IMPORTANT
-          mkdir -p pdfs
-          
+          mkdir -p dist/pdfs
+
           for file in Lecture*.md; do
-             [ -f "$file" ] || continue
-             name=$(basename "$file" .md)
-          
-             echo "Building HTML for $file → dist/$name"
-             pnpm slidev build "$file" \
-               --out "dist/$name" \
-               --base "/${{ github.event.repository.name }}/$name/"
-          
-             echo "Exporting PDF for $file → dist/pdfs/$name.pdf"
-             pnpm slidev export "$file" \
-               --format pdf \
-               --output "dist/pdfs/$name.pdf"
+            [ -f "$file" ] || continue
+            name=$(basename "$file" .md)
+
+            echo "Building HTML for $file"
+            pnpm slidev build "$file" \
+              --out "dist/$name" \
+              --base "/${{ github.event.repository.name }}/$name/"
+
+            echo "Exporting PDF for $file"
+            pnpm slidev export "$file" \
+              --format pdf \
+              --with-clicks \
+              --timeout 60000 \
+              --output "dist/pdfs/$name.pdf"
           done
 
-        # -------------------------------
+      # -------------------------------
       # Generate index.html
       # -------------------------------
       - name: Generate index.html
@@ -88,7 +103,8 @@ jobs:
             <style>
               body { font-family: sans-serif; padding: 40px; }
               h1 { margin-bottom: 20px; }
-              ul { line-height: 2; font-size: 1.2em; }
+              ul { line-height: 2; font-size: 1.1em; }
+              li { margin-bottom: 10px; }
               a { text-decoration: none; color: #0070f3; margin-right: 15px; }
               a:hover { text-decoration: underline; }
             </style>
@@ -101,7 +117,13 @@ jobs:
           for dir in dist/*/; do
             name=$(basename "$dir")
 
-            echo "$name:<br/> <li>
+            # Skip pdfs folder
+            if [ "$name" = "pdfs" ]; then
+              continue
+            fi
+
+            echo "              <li>
+                <strong>$name</strong><br/>
                 <a href=\"./$name/\">View Slides</a>
                 <a href=\"./pdfs/$name.pdf\" download>Download PDF</a>
               </li>" >> dist/index.html
@@ -114,7 +136,7 @@ jobs:
           EOF
 
       # -------------------------------
-      # Deploy HTML to GitHub Pages
+      # Deploy to GitHub Pages
       # -------------------------------
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
