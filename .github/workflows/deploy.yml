@@ -54,8 +54,9 @@ jobs:
             fonts-noto \
             fonts-noto-cjk \
             fonts-noto-color-emoji \
-            fonts-freefont-ttf
-
+            fonts-freefont-ttf \
+            fonts-firacode \
+            fonts-ibm-plex
       # -------------------------------
       # Install Playwright browsers
       # -------------------------------
@@ -77,13 +78,11 @@ jobs:
               --base "/"
           
             pnpm slidev export "$file" \
-            --format pdf \
-            --timeout 120000 \
-            --wait 3000 \
-            --browser-args="--no-sandbox --disable-setuid-sandbox --disable-gpu" \
-            --output "dist/pdfs/$name.pdf"
+              --format pdf \  
+              --timeout 120000 \
+              --wait 3000 \
+              --output "dist/pdfs/$name.pdf"
           
-            kill $SERVER_PID
           done
 
       # -------------------------------
