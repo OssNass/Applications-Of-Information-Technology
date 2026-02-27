@@ -45,7 +45,9 @@ jobs:
       # -------------------------------
       - name: Install Slidev CLI
         run: pnpm add -D @slidev/cli
-
+      - name: Install Playwright Browsers
+        run: |
+          pnpm exec playwright install --with-deps
       # -------------------------------
       # Build Slides (HTML + PDF)
       # -------------------------------
