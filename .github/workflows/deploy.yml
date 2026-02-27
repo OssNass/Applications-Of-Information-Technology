@@ -53,68 +53,65 @@ jobs:
       # -------------------------------
       - name: Build all root-level .md files
         run: |
-           mkdir -p dist
-           mkdir -p pdfs
+          mkdir -p dist
+          mkdir -p dist/pdfs   # <-- IMPORTANT
+          mkdir -p pdfs
+          
+          for file in Lecture*.md; do
+             [ -f "$file" ] || continue
+             name=$(basename "$file" .md)
+          
+             echo "Building HTML for $file → dist/$name"
+             pnpm slidev build "$file" \
+               --out "dist/$name" \
+               --base "/${{ github.event.repository.name }}/$name/"
+          
+             echo "Exporting PDF for $file → dist/pdfs/$name.pdf"
+             pnpm slidev export "$file" \
+               --format pdf \
+               --output "dist/pdfs/$name.pdf"
+          done
 
-           for file in Lecture*.md; do
-              [ -f "$file" ] || continue
-              name=$(basename "$file" .md)
-
-              echo "Building HTML for $file → dist/$name"
-              pnpm slidev build "$file" \
-                --out "dist/$name" \
-                --base "/${{ github.event.repository.name }}/$name/"
-
-              echo "Exporting PDF for $file → pdfs/$name.pdf"
-              pnpm slidev export "$file" \
-                --format pdf \
-                --output "pdfs/$name.pdf"
-           done
-
-      # -------------------------------
+        # -------------------------------
       # Generate index.html
       # -------------------------------
       - name: Generate index.html
         run: |
-          cat > dist/index.html << 'EOF'
+          REPO_NAME="${{ github.event.repository.name }}"
+
+          cat > dist/index.html << EOF
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="UTF-8" />
-            <title>Applications Of Information Technology</title>
+            <title>${REPO_NAME}</title>
             <style>
               body { font-family: sans-serif; padding: 40px; }
               h1 { margin-bottom: 20px; }
               ul { line-height: 2; font-size: 1.2em; }
-              a { text-decoration: none; color: #0070f3; }
+              a { text-decoration: none; color: #0070f3; margin-right: 15px; }
               a:hover { text-decoration: underline; }
             </style>
           </head>
           <body>
-            <h1>Available Lectures</h1>
+            <h1>${REPO_NAME}</h1>
             <ul>
           EOF
 
           for dir in dist/*/; do
             name=$(basename "$dir")
-            echo "              <li><a href=\"./$name/\">$name</a></li>" >> dist/index.html
+
+            echo "              <li>
+                <a href=\"./$name/\">View Slides</a>
+                <a href=\"./pdfs/$name.pdf\" download>Download PDF</a>
+              </li>" >> dist/index.html
           done
 
-          cat >> dist/index.html << 'EOF'
+          cat >> dist/index.html << EOF
             </ul>
           </body>
           </html>
           EOF
-
-      # -------------------------------
-      # Upload PDFs as GitHub Artifacts
-      # -------------------------------
-      - name: Upload Lecture PDFs
-        uses: actions/upload-artifact@v4
-        with:
-          name: slidev-pdfs
-          path: pdfs/*.pdf
-          if-no-files-found: warn
 
       # -------------------------------
       # Deploy HTML to GitHub Pages
