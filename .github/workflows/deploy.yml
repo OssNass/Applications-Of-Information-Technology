@@ -63,26 +63,29 @@ jobs:
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps
 
-      - name: Build all root-level Lecture*.md files
+      - name: Build + Export Slides via Browser
         run: |
           mkdir -p dist
           mkdir -p dist/pdfs
-          
+
           for file in Lecture*.md; do
+            # Skip if file doesn't exist
             [ -f "$file" ] || continue
-            name=$(basename "$file" .md)
-          
-            echo "Building static site for $file"
-            pnpm slidev build "$file" \
-              --out "dist/$name" \
-              --base "/"
-          
+
+            # Clean filename
+            name=$(basename "$file".md)
+            echo "Building slides: $file → $name"
+
+            # Build static site
+            pnpm slidev build "$file" --out "dist/$name" --base "/"
+
+            # Browser export
             pnpm slidev export "$file" \
-              --format pdf \  
+              --format pdf \
+              --browser \
               --timeout 120000 \
               --wait 3000 \
               --output "dist/pdfs/$name.pdf"
-          
           done
 
       # -------------------------------
