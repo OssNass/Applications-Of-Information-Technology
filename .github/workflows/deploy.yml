@@ -83,7 +83,8 @@ jobs:
             pnpm slidev export "$file" \
               --format pdf \
               --with-clicks \
-              --timeout 60000 \
+              --timeout 120000 \
+              --wait 2000 \
               --output "dist/pdfs/$name.pdf"
           done
 
