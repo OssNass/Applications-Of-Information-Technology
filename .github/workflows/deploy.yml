@@ -39,7 +39,17 @@ jobs:
             pnpm install
           fi
           cd slidev-theme-penguin-rtl && pnpm install && cd ..
-
+      # -------------------------------
+      # Install system fonts (fix empty PDF)
+      # -------------------------------
+      - name: Install fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-noto \
+            fonts-noto-cjk \
+            fonts-noto-color-emoji \
+            fonts-freefont-ttf
       # -------------------------------
       # Install Slidev CLI
       # -------------------------------
@@ -54,7 +64,6 @@ jobs:
       - name: Build all root-level .md files
         run: |
           mkdir -p dist
-          mkdir -p dist/pdfs   # <-- IMPORTANT
           mkdir -p pdfs
           
           for file in Lecture*.md; do
@@ -66,10 +75,12 @@ jobs:
                --out "dist/$name" \
                --base "/${{ github.event.repository.name }}/$name/"
           
-             echo "Exporting PDF for $file → dist/pdfs/$name.pdf"
+             echo "Exporting PDF for $file → pdfs/$name.pdf"
              pnpm slidev export "$file" \
                --format pdf \
-               --output "dist/pdfs/$name.pdf"
+               --with-clicks \
+               --timeout 60000 \
+               --output "pdfs/$name.pdf"
           done
 
         # -------------------------------
