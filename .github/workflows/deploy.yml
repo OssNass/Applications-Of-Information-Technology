@@ -73,7 +73,7 @@ jobs:
             [ -f "$file" ] || continue
 
             # Clean filename
-            name=$(basename "$file".md)
+            name=$(basename "$file")
             echo "Building slides: $file → $name"
 
             # Build static site
@@ -82,7 +82,6 @@ jobs:
             # Browser export
             pnpm slidev export "$file" \
               --format pdf \
-              --browser \
               --timeout 120000 \
               --wait 3000 \
               --output "dist/pdfs/$name.pdf"
