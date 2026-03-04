@@ -106,3 +106,4 @@ EOF
 echo "✅ Build complete! Output in $DIST_DIR"
 
 git subtree push --prefix dist origin gh-pages
+git checkout gh-pages
