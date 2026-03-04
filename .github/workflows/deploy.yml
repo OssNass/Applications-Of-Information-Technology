@@ -68,40 +68,34 @@ jobs:
         run: |
           mkdir -p dist
           mkdir -p dist/pdfs
-
           for file in Lecture-*.md; do
             [ -f "$file" ] || continue
-
             name=$(basename "$file" .md)
-            echo "Processing: $name"
+            echo "Processing lecture: $name"
 
-            # 1️⃣ Build static HTML
-            pnpm slidev build "$file" \
-              --out "dist/$name" \
-              --base "./"
+            # 1️⃣ Build static site for HTML deployment
+            pnpm slidev build "$file" --out "dist/$name" --base "./"
 
-            # 2️⃣ Export PDF (stable CI settings)
+            # 2️⃣ Export PDF from the .md (must be Markdown)
             pnpm slidev export "$file" \
               --format pdf \
               --timeout 180000 \
-              --wait 8000 \
+              --wait 100000 \
               --output "dist/pdfs/$name.pdf"
 
-            # 3️⃣ Export PNG slides
+            # 3️⃣ Export PNG for thumbnail (first slide)
             pnpm slidev export "$file" \
               --format png \
-              --timeout 180000 \
-              --wait 8000 \
-              --output "dist/$name"
+              --timeout 200000 \
+              --wait 20000 \
+              --output "dist-tmp/$name"
 
-            # 4️⃣ Use first slide as thumbnail
-            if [ -f "dist/$name/1.png" ]; then
-              mv "dist/$name/1.png" "dist/$name/thumbnail.png"
+            if [ -f "dist-tmp/$name/1.png" ]; then
+              mv "dist-tmp/$name/1.png" "dist/$name/thumbnail.png"
             fi
-
-            # Remove extra slide images
-            rm -f dist/$name/[0-9]*.png || true
+            rm -r dist-tmp/$name || true
           done
+          rm -r dist-tmp || true
 
       # -------------------------------
       # Generate Modern index.html
