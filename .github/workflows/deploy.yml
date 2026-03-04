@@ -83,7 +83,6 @@ jobs:
             # 2️⃣ Export PDF (stable CI settings)
             pnpm slidev export "$file" \
               --format pdf \
-              --browser chromium \
               --timeout 180000 \
               --wait 8000 \
               --output "dist/pdfs/$name.pdf"
@@ -91,7 +90,6 @@ jobs:
             # 3️⃣ Export PNG slides
             pnpm slidev export "$file" \
               --format png \
-              --browser chromium \
               --timeout 180000 \
               --wait 8000 \
               --output "dist/$name"
