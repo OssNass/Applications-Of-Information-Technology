@@ -1,4 +1,4 @@
-name: Deploy multiple Slidev lectures with pnpm (Node 22)
+name: Build & Deploy Slidev Lectures (Node 22 + pnpm)
 
 on:
   push:
@@ -23,10 +23,10 @@ jobs:
       # -------------------------------
       # Setup Node
       # -------------------------------
-      - name: Setup Node 22
+      - name: Setup Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       # -------------------------------
       # Enable pnpm
@@ -45,92 +45,144 @@ jobs:
           cd slidev-theme-penguin-rtl && pnpm install && cd ..
 
       # -------------------------------
-      # Install system fonts (fix empty PDFs)
+      # Install system fonts (important for CI rendering)
       # -------------------------------
-      - name: Install fonts
+      - name: Install system fonts
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             fonts-noto \
             fonts-noto-cjk \
-            fonts-noto-color-emoji \
-            fonts-freefont-ttf \
-            fonts-firacode \
-            fonts-ibm-plex
+            fonts-noto-color-emoji
+
       # -------------------------------
       # Install Playwright browsers
       # -------------------------------
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps
 
-      - name: Build + Export Slides via Browser
+      # -------------------------------
+      # Build + Export Slides
+      # -------------------------------
+      - name: Build + Export Slides
         run: |
           mkdir -p dist
           mkdir -p dist/pdfs
 
-          for file in Lecture*.md; do
-            # Skip if file doesn't exist
+          for file in Lecture-*.md; do
             [ -f "$file" ] || continue
 
-            # Clean filename
-            name=$(basename "$file")
-            echo "Building slides: $file → $name"
+            name=$(basename "$file" .md)
+            echo "Processing: $name"
 
-            # Build static site
-            pnpm slidev build "$file" --out "dist/$name" --base "/"
+            # 1️⃣ Build static HTML
+            pnpm slidev build "$file" \
+              --out "dist/$name" \
+              --base "./"
 
-            # Browser export
+            # 2️⃣ Export PDF (stable CI settings)
             pnpm slidev export "$file" \
               --format pdf \
-              --timeout 120000 \
-              --wait 3000 \
+              --browser chromium \
+              --timeout 180000 \
+              --wait 8000 \
               --output "dist/pdfs/$name.pdf"
+
+            # 3️⃣ Export PNG slides
+            pnpm slidev export "$file" \
+              --format png \
+              --browser chromium \
+              --timeout 180000 \
+              --wait 8000 \
+              --output "dist/$name"
+
+            # 4️⃣ Use first slide as thumbnail
+            if [ -f "dist/$name/1.png" ]; then
+              mv "dist/$name/1.png" "dist/$name/thumbnail.png"
+            fi
+
+            # Remove extra slide images
+            rm -f dist/$name/[0-9]*.png || true
           done
 
       # -------------------------------
-      # Generate index.html
+      # Generate Modern index.html
       # -------------------------------
       - name: Generate index.html
         run: |
-          REPO_NAME="${{ github.event.repository.name }}"
-
+          
           cat > dist/index.html << EOF
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="UTF-8" />
-            <title>${REPO_NAME}</title>
+            <title>${SUBJECT_NAME}</title>
             <style>
-              body { font-family: sans-serif; padding: 40px; }
-              h1 { margin-bottom: 20px; }
-              ul { line-height: 2; font-size: 1.1em; }
-              li { margin-bottom: 10px; }
-              a { text-decoration: none; color: #0070f3; margin-right: 15px; }
-              a:hover { text-decoration: underline; }
+              body {
+                font-family: system-ui, sans-serif;
+                padding: 40px;
+                background: #f5f7fa;
+              }
+              h1 {
+                margin-bottom: 30px;
+              }
+              .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 25px;
+              }
+              .card {
+                background: white;
+                border-radius: 14px;
+                padding: 15px;
+                box-shadow: 0 6px 15px rgba(0,0,0,0.06);
+                transition: transform 0.15s ease;
+              }
+              .card:hover {
+                transform: translateY(-4px);
+              }
+              .card img {
+                width: 100%;
+                border-radius: 10px;
+                margin-bottom: 12px;
+              }
+              .card h3 {
+                margin: 0 0 10px 0;
+              }
+              .card a {
+                text-decoration: none;
+                color: #0070f3;
+                margin-right: 12px;
+                font-weight: 500;
+              }
+              .card a:hover {
+                text-decoration: underline;
+              }
             </style>
           </head>
           <body>
-            <h1>${REPO_NAME}</h1>
-            <ul>
+            <h1>${SUBJECT_NAME}</h1>
+            <div class="grid">
           EOF
 
           for dir in dist/*/; do
             name=$(basename "$dir")
-
-            # Skip pdfs folder
             if [ "$name" = "pdfs" ]; then
               continue
             fi
 
-            echo "              <li>
-                <strong>$name</strong><br/>
-                <a href=\"./$name/\">View Slides</a>
-                <a href=\"./pdfs/$name.pdf\" download>Download PDF</a>
-              </li>" >> dist/index.html
+            cat >> dist/index.html << EOF
+              <div class="card">
+                <img src="./$name/thumbnail.png" alt="$name">
+                <h3>$name</h3>
+                <a href="./$name/">View Slides</a>
+                <a href="./pdfs/$name.pdf" download>Download PDF</a>
+              </div>
+            EOF
           done
 
           cat >> dist/index.html << EOF
-            </ul>
+            </div>
           </body>
           </html>
           EOF
