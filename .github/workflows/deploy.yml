@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       # -------------------------------
       # Enable pnpm
@@ -45,8 +45,12 @@ jobs:
       # -------------------------------
       - name: Install dependencies
         run: |
-          pnpm install
-          cd slidev-theme-penguin-rtl && pnpm install && cd ..
+              rm -rf node_modules
+              pnpm install --shamefully-hoist
+              cd slidev-theme-penguin-rtl
+              rm -rf node_modules
+              pnpm install --shamefully-hoist
+              cd ..
 
       # -------------------------------
       # Install fonts
