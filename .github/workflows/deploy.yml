@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20
 
       # -------------------------------
       # Enable pnpm
@@ -46,10 +46,10 @@ jobs:
       - name: Install dependencies
         run: |
               rm -rf node_modules
-              pnpm install --shamefully-hoist
+              yarn install --shamefully-hoist
               cd slidev-theme-penguin-rtl
               rm -rf node_modules
-              pnpm install --shamefully-hoist
+              yarn install --shamefully-hoist
               cd ..
 
       # -------------------------------
@@ -67,7 +67,7 @@ jobs:
       # Install Playwright
       # -------------------------------
       - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps
+        run: yarn exec playwright install --with-deps
 
       # -------------------------------
       # Install img2pdf
@@ -102,13 +102,13 @@ jobs:
             echo "$title" > "dist-tmp/$name.title"
 
             # Build HTML slides
-            pnpm slidev build "$file" \
+            yarn slidev build "$file" \
               --out "dist/$name" \
               --base "/$name/" \
               --routerMode hash
 
             # Export slides as PNG
-            pnpm slidev export "$file" \
+            yarn slidev export "$file" \
               --format png \
               --timeout 200000 \
               --wait 20000 \
