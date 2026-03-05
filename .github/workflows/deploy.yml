@@ -1,4 +1,4 @@
-name: Build & Deploy Slidev Lectures (PNG → PDF)
+name: Build & Deploy Slidev Lectures
 
 on:
   push:
@@ -49,7 +49,7 @@ jobs:
           cd slidev-theme-penguin-rtl && pnpm install && cd ..
 
       # -------------------------------
-      # Install system fonts
+      # Install fonts
       # -------------------------------
       - name: Install fonts
         run: |
@@ -60,17 +60,17 @@ jobs:
             fonts-noto-color-emoji
 
       # -------------------------------
-      # Install Playwright browsers
+      # Install Playwright
       # -------------------------------
-      - name: Install Playwright
+      - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
 
       # -------------------------------
-      # Install ImageMagick (PNG → PDF)
+      # Install img2pdf
       # -------------------------------
-      - name: Install ImageMagick
+      - name: Install img2pdf
         run: |
-          sudo apt-get install -y imagemagick
+          sudo apt-get install -y img2pdf
 
       # -------------------------------
       # Build Slides
@@ -85,17 +85,29 @@ jobs:
             [ -f "$file" ] || continue
 
             name=$(basename "$file" .md)
+
             echo "Processing lecture: $name"
+
+            # Extract title from front-matter if present
+            title=$(grep -m1 '^title:' "$file" | sed 's/title:[ ]*//')
+
+            if [ -z "$title" ]; then
+              title="$name"
+            fi
+
+            echo "$title" > "dist-tmp/$name.title"
 
             # Build HTML slides
             pnpm slidev build "$file" \
-              --out "dist/$name"
+              --out "dist/$name" \
+              --base "/$name/" \
+              --routerMode hash
 
             # Export slides as PNG
             pnpm slidev export "$file" \
               --format png \
-              --timeout 500000 \
-              --wait 5000 \
+              --timeout 200000 \
+              --wait 20000 \
               --output "dist-tmp/$name"
 
             # Create thumbnail
@@ -106,25 +118,18 @@ jobs:
             # Sort PNG files numerically
             mapfile -t files < <(printf "%s\n" dist-tmp/$name/*.png | sort -V)
 
-            echo "Generating PDF for $name"
+            echo "Generating PDF"
 
-            # Combine PNG → PDF
-            convert -density 300 "${files[@]}" -quality 90 "dist/pdfs/$name.pdf"
-
-            # Cleanup
-            rm -rf "dist-tmp/$name"
+            # PNG → PDF (lossless)
+            img2pdf "${files[@]}" -o "dist/pdfs/$name.pdf"
 
           done
-
-          rm -rf dist-tmp
 
       # -------------------------------
       # Generate index.html
       # -------------------------------
       - name: Generate index.html
         run: |
-          mkdir -p dist
-
           {
             echo '<!DOCTYPE html>'
             echo '<html>'
@@ -153,10 +158,16 @@ jobs:
               continue
             fi
 
+            if [ -f "dist-tmp/$name.title" ]; then
+              title=$(cat "dist-tmp/$name.title")
+            else
+              title="$name"
+            fi
+
             {
               echo '  <div class="card">'
-              echo "    <img src=\"./$name/thumbnail.png\" alt=\"$name\">"
-              echo "    <h3>$name</h3>"
+              echo "    <img src=\"./$name/thumbnail.png\" alt=\"$title\">"
+              echo "    <h3>$title</h3>"
               echo "    <a href=\"./$name/\">View Slides</a>"
               echo "    <a href=\"./pdfs/$name.pdf\" download>Download PDF</a>"
               echo '  </div>'
