@@ -3,7 +3,7 @@ name: Build Slidev lectures (HTML + PDF), deploy Pages, and upload artifacts
 on:
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: write
