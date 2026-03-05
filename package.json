@@ -2,6 +2,11 @@
   "name": "applications-of-information-technology",
   "type": "module",
   "private": true,
+   "pnpm": {
+    "overrides": {
+      "katex": "0.16.9"
+    }
+  },
   "scripts": {
     "build": "slidev build",
     "dev": "slidev --open",
