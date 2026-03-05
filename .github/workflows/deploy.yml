@@ -46,10 +46,10 @@ jobs:
       - name: Install dependencies
         run: |
               rm -rf node_modules
-              yarn install --shamefully-hoist
+              pnpm install --shamefully-hoist
               cd slidev-theme-penguin-rtl
               rm -rf node_modules
-              yarn install --shamefully-hoist
+              pnpm install --shamefully-hoist
               cd ..
 
       # -------------------------------
@@ -67,7 +67,7 @@ jobs:
       # Install Playwright
       # -------------------------------
       - name: Install Playwright browsers
-        run: yarn exec playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       # -------------------------------
       # Install img2pdf
@@ -102,13 +102,11 @@ jobs:
             echo "$title" > "dist-tmp/$name.title"
 
             # Build HTML slides
-            yarn slidev build "$file" \
-              --out "dist/$name" \
-              --base "/$name/" \
-              --routerMode hash
+            pnpm slidev build "$file" \
+              --out "dist/$name"
 
             # Export slides as PNG
-            yarn slidev export "$file" \
+            pnpm slidev export "$file" \
               --format png \
               --timeout 200000 \
               --wait 20000 \
