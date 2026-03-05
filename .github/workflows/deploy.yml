@@ -89,15 +89,13 @@ jobs:
 
             # Build HTML slides
             pnpm slidev build "$file" \
-              --out "dist/$name" \
-              --base "/$name/" \
-              --routerMode hash
+              --out "dist/$name"
 
             # Export slides as PNG
             pnpm slidev export "$file" \
               --format png \
-              --timeout 200000 \
-              --wait 20000 \
+              --timeout 500000 \
+              --wait 5000 \
               --output "dist-tmp/$name"
 
             # Create thumbnail
