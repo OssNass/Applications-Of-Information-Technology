@@ -1,4 +1,4 @@
-name: Build & Deploy Slidev Lectures (Node 22 + pnpm)
+name: Build & Deploy Slidev Lectures (PNG → PDF)
 
 on:
   push:
@@ -9,13 +9,17 @@ permissions:
   contents: write
   pages: write
 
+env:
+  SUBJECT_NAME: ${{ vars.SUBJECT_NAME }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
+
       # -------------------------------
-      # Checkout
+      # Checkout repository
       # -------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,7 +27,7 @@ jobs:
       # -------------------------------
       # Setup Node
       # -------------------------------
-      - name: Setup Node 24
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -45,9 +49,9 @@ jobs:
           cd slidev-theme-penguin-rtl && pnpm install && cd ..
 
       # -------------------------------
-      # Install system fonts (important for CI rendering)
+      # Install system fonts
       # -------------------------------
-      - name: Install system fonts
+      - name: Install fonts
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -58,47 +62,66 @@ jobs:
       # -------------------------------
       # Install Playwright browsers
       # -------------------------------
-      - name: Install Playwright Browsers
+      - name: Install Playwright
         run: pnpm exec playwright install --with-deps
 
       # -------------------------------
-      # Build + Export Slides
+      # Install ImageMagick (PNG → PDF)
+      # -------------------------------
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get install -y imagemagick
+
+      # -------------------------------
+      # Build Slides
       # -------------------------------
       - name: Build + Export Slides
         run: |
           mkdir -p dist
           mkdir -p dist/pdfs
+          mkdir -p dist-tmp
+
           for file in Lecture-*.md; do
             [ -f "$file" ] || continue
+
             name=$(basename "$file" .md)
             echo "Processing lecture: $name"
 
-            # 1️⃣ Build static site for HTML deployment
-            pnpm slidev build "$file" --out "dist/$name" --base "./"
+            # Build HTML slides
+            pnpm slidev build "$file" \
+              --out "dist/$name" \
+              --base "/$name/" \
+              --routerMode hash
 
-            # 2️⃣ Export PDF from the .md (must be Markdown)
-            pnpm slidev export "$file" \
-              --format pdf \
-              --timeout 180000 \
-              --wait 100000 \
-              --output "dist/pdfs/$name.pdf"
-
-            # 3️⃣ Export PNG for thumbnail (first slide)
+            # Export slides as PNG
             pnpm slidev export "$file" \
               --format png \
               --timeout 200000 \
               --wait 20000 \
               --output "dist-tmp/$name"
 
+            # Create thumbnail
             if [ -f "dist-tmp/$name/1.png" ]; then
-              mv "dist-tmp/$name/1.png" "dist/$name/thumbnail.png"
+              cp "dist-tmp/$name/1.png" "dist/$name/thumbnail.png"
             fi
-            rm -r dist-tmp/$name || true
+
+            # Sort PNG files numerically
+            mapfile -t files < <(printf "%s\n" dist-tmp/$name/*.png | sort -V)
+
+            echo "Generating PDF for $name"
+
+            # Combine PNG → PDF
+            magick "${files[@]}" "dist/pdfs/$name.pdf"
+
+            # Cleanup
+            rm -rf "dist-tmp/$name"
+
           done
-          rm -r dist-tmp || true
+
+          rm -rf dist-tmp
 
       # -------------------------------
-      # Generate Modern index.html
+      # Generate index.html
       # -------------------------------
       - name: Generate index.html
         run: |
@@ -108,15 +131,16 @@ jobs:
             echo '<!DOCTYPE html>'
             echo '<html>'
             echo '<head>'
-            echo '<meta charset="UTF-8" />'
+            echo '<meta charset="UTF-8">'
             echo "<title>${SUBJECT_NAME}</title>"
             echo '<style>'
-            echo 'body { font-family: system-ui, sans-serif; padding: 40px; background: #f5f7fa; }'
-            echo 'h1 { margin-bottom: 30px; }'
-            echo '.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; }'
-            echo '.card { background: white; border-radius: 14px; padding: 15px; box-shadow: 0 6px 15px rgba(0,0,0,0.06); }'
-            echo '.card img { width: 100%; border-radius: 10px; margin-bottom: 12px; }'
-            echo '.card a { text-decoration: none; color: #0070f3; margin-right: 12px; }'
+            echo 'body { font-family: system-ui, sans-serif; padding: 40px; background:#f5f7fa; }'
+            echo 'h1 { margin-bottom:30px; }'
+            echo '.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:25px; }'
+            echo '.card { background:white; border-radius:14px; padding:15px; box-shadow:0 6px 15px rgba(0,0,0,0.06); }'
+            echo '.card img { width:100%; border-radius:10px; margin-bottom:12px; }'
+            echo '.card a { text-decoration:none; color:#0070f3; margin-right:12px; }'
+            echo '.card a:hover { text-decoration:underline; }'
             echo '</style>'
             echo '</head>'
             echo '<body>'
@@ -126,6 +150,7 @@ jobs:
 
           for dir in dist/*/; do
             name=$(basename "$dir")
+
             if [ "$name" = "pdfs" ]; then
               continue
             fi
@@ -138,6 +163,7 @@ jobs:
               echo "    <a href=\"./pdfs/$name.pdf\" download>Download PDF</a>"
               echo '  </div>'
             } >> dist/index.html
+
           done
 
           {
