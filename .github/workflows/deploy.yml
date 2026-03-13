@@ -1,110 +1,97 @@
-name: Build Slidev lectures (HTML + PDF), deploy Pages, and upload artifacts
+name: Deploy Slidev to GitHub Pages
 
 on:
   push:
     branches:
-      - main
+      - main # Change this if your default branch is different
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node 22
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'pnpm'
 
-      - name: Install Yarn
-        run: npm install -g yarn
+      - name: Install Main Dependencies
+        run: pnpm install
 
-      - name: Install dependencies
+      - name: Install Custom Theme Dependencies
         run: |
-          if [ -f "package.json" ]; then
-            yarn install
-          fi
-          cd slidev-theme-penguin-rtl && yarn install && cd ..
+          cd slidev-theme-penguin-rtl
+          pnpm install
 
-      - name: Install Slidev CLI
-        run: yarn add -D @slidev/cli
+      - name: Install Playwright Browsers (for PDF Export)
+        run: pnpm exec playwright install --with-deps chromium
 
-      - name: Install Playwright dependencies
-        run: |
-          npx playwright install --with-deps chromium
-
-      - name: Build HTML and export PDFs
+      - name: Build Slidev Markdown files
         run: |
           mkdir -p dist
-          mkdir -p dist/pdf
-          mkdir -p pdf
+          
+          # Create a simple index page
+          echo "<!DOCTYPE html><html><head><title>Course Lectures</title><style>body{font-family:sans-serif; max-width: 800px; margin: 2rem auto; line-height: 1.6;} li{margin-bottom: 0.5rem;}</style></head><body>" > dist/index.html
+          echo "<h1>Available Lectures</h1><ul>" >> dist/index.html
 
-          for file in Lecture*.md; do
-            [ -f "$file" ] || continue
-            name=$(basename "$file" .md)
+          # --- FIX FOR THE EMPTY PDF ISSUE ---
+          # We create a tiny dummy file and export it to force Vite to pre-bundle 
+          # dependencies and warm up the cache. We then delete it.
+          echo "Warming up Vite cache for Playwright..."
+          echo "# Warmup" > warmup.md
+          pnpm slidev export warmup.md > /dev/null 2>&1 || true
+          rm warmup.md warmup.pdf || true
+          # -----------------------------------
 
-            echo "Building HTML for $file"
-            yarn slidev build "$file" \
-              --out "dist/$name" \
-              --base "/${{ github.event.repository.name }}/$name/"
+          # Loop through all files matching Lecture-*.md
+          for file in Lecture-*.md; do
+            [ -e "$file" ] || continue 
 
-            echo "Exporting PDF for $file"
-            yarn slidev export "$file" \
-              --output "pdf/$name.pdf"
+            filename=$(basename "$file" .md)
+            echo "Processing $filename..."
 
-            # Copy PDF to dist for GitHub Pages
-            cp "pdf/$name.pdf" "dist/pdf/$name.pdf"
+            # 1. Build the browsable HTML
+            pnpm slidev build "$file" --base /${{ github.event.repository.name }}/$filename/ --out dist/$filename
+
+            # 2. Export the downloadable PDF
+            # Added --wait 1500 to give the SPA an extra 1.5 seconds to hydrate fonts/components
+            pnpm slidev export "$file" --output dist/$filename.pdf --wait 1500
+
+            # 3. Append links to the index file
+            echo "<li><strong>$filename</strong>: <a href=\"$filename/\">View Slides</a> | <a href=\"$filename.pdf\">Download PDF</a></li>" >> dist/index.html
           done
 
-      - name: Generate index.html
-        run: |
-          cat > dist/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8" />
-            <title>Lectures</title>
-          </head>
-          <body>
-            <h1>Available Lectures</h1>
-            <ul>
-          EOF
+          echo "</ul></body></html>" >> dist/index.html
 
-          for dir in dist/*/; do
-            name=$(basename "$dir")
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v4
 
-            # Skip pdf folder
-            if [ "$name" = "pdf" ]; then
-              continue
-            fi
-
-            echo "              <li>" >> dist/index.html
-            echo "                <a href=\"./$name/\">$name (HTML)</a> | " >> dist/index.html
-            echo "                <a href=\"./pdf/$name.pdf\" download>Download PDF</a>" >> dist/index.html
-            echo "              </li>" >> dist/index.html
-          done
-
-          cat >> dist/index.html << 'EOF'
-            </ul>
-          </body>
-          </html>
-          EOF
-
-      - name: Upload PDF artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: slidev-pdfs
-          path: pdf
+          path: 'dist'
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+        id: deployment
+        uses: actions/deploy-pages@v4
