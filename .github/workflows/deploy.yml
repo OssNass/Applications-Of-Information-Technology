@@ -42,6 +42,7 @@ jobs:
       - name: Install Custom Theme Dependencies
         run: |
           cd slidev-theme-penguin-rtl
+          pnpm add -D vite
           pnpm install
 
       - name: Install Playwright Browsers (for PDF Export)
